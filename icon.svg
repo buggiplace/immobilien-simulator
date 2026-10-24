@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1a1a18"/>
+  <!-- Wohnhaus -->
+  <polygon points="320,120 360,120 360,206 320,172" fill="#4cc497"/>
+  <g fill="none" stroke="#4cc497" stroke-width="24" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M106 244 L256 116 L406 244"/>
+    <path d="M150 220 V396 H226 V318 H286 V396 H362 V220"/>
+  </g>
+  <g fill="#4cc497">
+    <rect x="178" y="254" width="40" height="40" rx="4"/>
+    <rect x="294" y="254" width="40" height="40" rx="4"/>
+  </g>
+</svg>

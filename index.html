@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Immobilien Investment Simulator</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-title" content="Immo-Simulator">
+<meta name="theme-color" content="#1a1a18">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <h1>Immobilien Investment Simulator</h1>
+  <span class="sub" id="hdr-sub">Vereinfachtes Steuermodell Deutschland</span>
+  <div class="mode-toggle">
+    <span class="lbl">Modus:</span>
+    <button class="hdr-btn active" id="hdr-single" onclick="setAppMode('single')">Einzelanalyse</button>
+    <button class="hdr-btn" id="hdr-compare" onclick="setAppMode('compare')">Vergleich A/B</button>
+    <button class="hdr-btn" id="hdr-hilfe" onclick="toggleHilfe()">Anleitung</button>
+    <button class="hdr-btn" id="hdr-szen" onclick="toggleSzen()">Szenarien ▾</button>
+  </div>
+</header>
+
+<section class="szen-panel" id="szen-panel" hidden></section>
+
+<div class="livebar" id="livebar">
+  <div><div class="l">Monatlich übrig</div><div class="v" id="lb-cf">—</div></div>
+  <div style="text-align:right"><div class="l">Eigenkapital</div><div class="v" id="lb-ek">—</div></div>
+</div>
+
+<div class="layout">
+<aside class="sidebar">
+
+  <div class="acc">
+    <div class="acc-head open" onclick="toggleAcc(this)"><span>Objekt</span><span class="acc-arrow"></span></div>
+    <div class="acc-body open">
+      <div class="field2">
+        <div class="field"><label>Quadratmeter</label><input type="number" id="qm" value="75" min="10" max="500" step="0.1"></div>
+        <div class="field"><label>Übergang<button type="button" class="info" data-tip="Steuerlicher Anschaffungstag: Übergang von Besitz, Nutzen und Lasten, nicht der Notartermin. Ab hier laufen AfA und die 3-Jahres-Frist der 15-%-Grenze." aria-label="Erklärung">i</button></label><input type="date" id="kaufdatum" value="2026-01-15"></div>
+      </div>
+      <div class="field2">
+        <div class="field"><label>Einzug Mieter</label><input type="date" id="einzugdatum" value="2026-04-01"></div>
+        <div class="field"><label>Kaltmiete / m² (€)</label><input type="number" id="mietqm" value="12" min="1" max="50" step="0.01"></div>
+      </div>
+      <div class="field"><label>Garage / sonstige Einnahmen (€/Mo)</label><input type="number" id="sonstige_einnahmen" value="0" min="0"></div>
+      <div class="field2">
+        <div class="field"><label>Sonstige: Erhöhung (€)</label><input type="number" id="sonst_plus" value="0" min="0" step="1"></div>
+        <div class="field"><label>alle … Jahre<button type="button" class="info" data-tip="Die Garagenmiete steigt ab Einzug in festen Schritten, z. B. alle 3 Jahre um 10 €. 0 € heißt: keine Erhöhung." aria-label="Erklärung">i</button></label><input type="number" id="sonst_alle" value="3" min="1" max="10" step="1"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head" onclick="toggleAcc(this)"><span>Mietsteigerung</span><span class="acc-arrow"></span></div>
+    <div class="acc-body">
+      <div class="mode-grp three">
+        <div class="mode-btn" id="mb-fix" onclick="setMieteMode('fix')">Festmiete<br><span style="font-size:9px;opacity:.7">Keine Anpassung</span></div>
+        <div class="mode-btn" id="mb-index" onclick="setMieteMode('index')">Indexmiete<br><span style="font-size:9px;opacity:.7">§557b BGB</span></div>
+        <div class="mode-btn active" id="mb-staffel" onclick="setMieteMode('staffel')">Staffelmiete<br><span style="font-size:9px;opacity:.7">§557a BGB</span></div>
+      </div>
+      <div class="miete-panel" id="panel-fix"><div class="chip">Miete bleibt konstant. Anpassung nur nach §558 BGB möglich.</div></div>
+      <div class="miete-panel" id="panel-index">
+        <div class="field"><label>VPI-Anpassung / Jahr (%)</label><input type="number" id="index_rate" value="2" min="0" max="8" step="0.1"></div>
+      </div>
+      <div class="miete-panel show" id="panel-staffel">
+        <div style="font-size:11px;color:var(--text-muted);font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Staffeln (Jahre nach Einzug)</div>
+        <div id="staffel-rows"></div>
+        <button class="btn-add" onclick="addStaffel()">+ Staffel hinzufügen</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head open" onclick="toggleAcc(this)"><span>Kauf &amp; Kaufpreis</span><span class="acc-arrow"></span></div>
+    <div class="acc-body open">
+      <div class="field"><label>Kaufpreis (€)</label><input type="number" id="kaufpreis" value="300000" step="1000"></div>
+      <div class="field2">
+        <div class="field"><label>Anteil Grund (%)<button type="button" class="info" data-tip="Grund und Boden wird nicht abgeschrieben. Nur der Gebäudeanteil zählt für die AfA." aria-label="Erklärung">i</button></label><input type="number" id="grundanteil" value="25" min="5" max="60"></div>
+        <div class="field"><label>Anteil Gebäude (%)</label><input type="number" id="geb_display" value="75" readonly style="opacity:.55"></div>
+      </div>
+      <div class="field"><label>Nutzungsdauer &amp; AfA-Satz<button type="button" class="info" data-tip="AfA = Absetzung für Abnutzung: Der Gebäudewert wird jedes Jahr mit einem festen Prozentsatz von der Steuer abgesetzt. 2 % bei Fertigstellung vor 2023, 3 % ab 2023, 4 % nur mit Gutachten zur Restnutzungsdauer." aria-label="Erklärung">i</button></label>
+        <div class="lt-group" style="margin-top:2px">
+          <div class="lt-btn" id="lt25" onclick="setLifetime(25)">25 Jahre<br><small>AfA 4%</small></div>
+          <div class="lt-btn" id="lt37" onclick="setLifetime(100/3)">33,3 Jahre<br><small>AfA 3%</small></div>
+          <div class="lt-btn active" id="lt50" onclick="setLifetime(50)">50 Jahre<br><small>AfA 2%</small></div>
+        </div>
+      </div>
+      <div class="sum-box"><span class="label">Kaufpreis</span><span class="val" id="sum-kauf">—</span></div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head open" onclick="toggleAcc(this)"><span>Kaufnebenkosten</span><span class="acc-arrow"></span></div>
+    <div class="acc-body open">
+      <div class="sl-row">
+        <div class="sl-head"><label>Makler</label><span class="sl-val" id="v-makler">0,00 %</span></div>
+        <input type="range" id="makler" min="0" max="5" step="0.01" value="0">
+      </div>
+      <div class="field2">
+        <div class="field"><label>Notar/Grundbuch Kauf (%)<button type="button" class="info" data-tip="Kosten für Kaufvertrag und Eigentumsumschreibung. Sie gehören zu den Anschaffungskosten und werden mit dem Gebäudeanteil abgeschrieben." aria-label="Erklärung">i</button></label><input type="number" id="notar_kauf" value="1.5" min="0" max="5" step="0.01"></div>
+        <div class="field"><label>Grunderwerbsteuer (%)</label>
+          <select id="gst_satz">
+            <option value="3.5">3,5 % (Bayern)</option>
+            <option value="5">5 % (BW, Nds., RLP, Sa.-Anh., Thür.)</option>
+            <option value="5.5">5,5 % (Bremen, Hamburg, Sachsen)</option>
+            <option value="6" selected>6 % (Hessen, Berlin, MV)</option>
+            <option value="6.5">6,5 % (NRW, Brandenb., Saarl., SH)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field2">
+        <div class="field"><label>Notar/Grundbuch Grundschuld (%)<button type="button" class="info" data-tip="Kosten für die Grundschuld der Bank. Das sind Finanzierungskosten und damit sofort im Kaufjahr abziehbare Werbungskosten." aria-label="Erklärung">i</button></label><input type="number" id="notar_gs" value="0.5" min="0" max="3" step="0.01"></div>
+        <div class="field"><label>Gutachten u. Ä. (€)<button type="button" class="info" data-tip="Einmalige Kosten, die sofort im Kaufjahr abziehbar sind, z. B. das Gutachten zur Restnutzungsdauer (RND)." aria-label="Erklärung">i</button></label><input type="number" id="gutachten" value="0" min="0" step="0.01"></div>
+      </div>
+      <div class="chip" id="notar-chip" style="margin-bottom:.5rem">—</div>
+      <div class="field"><label>Davon zu zahlen (%)<button type="button" class="info" data-tip="Anteil der Grunderwerbsteuer, der tatsächlich fällig wird. Ohne Ermäßigung 100 %." aria-label="Erklärung">i</button></label><input type="number" id="gst_anteil" value="100" min="0" max="100" step="1"></div>
+      <div class="chip" id="gst-chip" style="margin-bottom:.5rem">—</div>
+      <div class="sum-box red"><span class="label">Kaufnebenkosten gesamt</span><span class="val" id="sum-neben">—</span></div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head" onclick="toggleAcc(this)"><span>Sanierung &amp; Renovierung</span><span class="acc-arrow"></span></div>
+    <div class="acc-body">
+      <div class="field"><label>Maßnahmen vor dem Übergang<button type="button" class="info" data-tip="Für Arbeiten vor dem Übergang gilt die 15-%-Grenze nicht. Entscheidend ist dann, ob die Wohnung beim Erwerb technisch funktionsfähig war: dann Erhaltungsaufwand (sofort abziehbar), sonst Anschaffungskosten (Gebäude-AfA). Ein heruntergekommener Zustand allein heißt nicht „nicht betriebsbereit“." aria-label="Erklärung">i</button></label>
+        <select id="vor_anschaffung">
+          <option value="position" selected>Je Maßnahme (Standard)</option>
+          <option value="erhalt">Sofortabzug vor Übergang (FG-Linie, umstritten)</option>
+          <option value="topf">Finanzamt zählt sie zur 15-%-Grenze</option>
+          <option value="ak">Nicht betriebsbereit: Anschaffungskosten</option>
+        </select>
+      </div>
+      <div class="ampel" id="ampel-side"></div>
+      <div id="ms-rows"></div>
+      <button class="btn-add" onclick="addMassnahme()">+ Maßnahme hinzufügen</button>
+      <div class="sum-box"><span class="label">Sanierung gesamt (brutto)</span><span class="val" id="sum-san">—</span></div>
+      <div class="chip">Details und Steuerwirkung im Reiter „Sanierung steuerlich“. Die Aufteilung der Beträge auf Maßnahmen und Daten ist geschätzt, bitte mit den Rechnungen abgleichen.</div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head" onclick="toggleAcc(this)"><span>Jahresinvestitionen</span><span class="acc-arrow"></span></div>
+    <div class="acc-body">
+      <div class="chip" style="margin-bottom:.75rem">Spätere Investitionen (z. B. Fenster, Heizung) werden über ihre Nutzungsdauer abgeschrieben und im Investitionsjahr bezahlt. Erhaltungsaufwand in den ersten 3 Jahren nach dem Übergang gehört in die Sanierungsliste, damit die 15-%-Grenze ihn erfasst.</div>
+      <div id="inv-rows"></div>
+      <button class="btn-add" onclick="addInvestition()">+ Investition hinzufügen</button>
+      <div class="sum-box"><span class="label">Investitionen gesamt</span><span class="val" id="sum-inv">0 €</span></div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head open" onclick="toggleAcc(this)"><span>Finanzierung</span><span class="acc-arrow"></span></div>
+    <div class="acc-body open">
+      <div class="field"><label>Darlehenssumme laut Vertrag (€)<button type="button" class="info" data-tip="Steht im Kreditvertrag. Mehrkosten werden nicht finanziert, sondern erhöhen das Eigenkapital. Die Rate bleibt gleich." aria-label="Erklärung">i</button></label><input type="number" id="darlehen" value="250000" min="0" step="100"></div>
+      <div class="field2">
+        <div class="field"><label>Zinssatz (%)</label><input type="number" id="zins" value="3.8" min="1" max="8" step="0.01"></div>
+        <div class="field"><label>Tilgung (%)</label><input type="number" id="tilgung" value="2" min="0.5" max="5" step="0.1"></div>
+      </div>
+      <div class="chip" style="margin-bottom:.5rem">Zinsen = Kosten · Tilgung = Vermögensaufbau</div>
+      <div class="field2">
+        <div class="sum-box red" style="margin-top:0"><span class="label">Zinsen / Monat</span><span class="val" id="sum-zins">—</span></div>
+        <div class="sum-box blue" style="margin-top:0"><span class="label">Tilgung / Monat</span><span class="val" id="sum-tilg">—</span></div>
+      </div>
+      <div class="sum-box"><span class="label">Monatliche Rate</span><span class="val" id="sum-rate">—</span></div>
+      <div class="sum-box blue"><span class="label">Eigenkapital</span><span class="val" id="sum-ek">—</span></div>
+      <div class="chip" id="ek-chip">Das Darlehen ist fest. Mehrkosten (z. B. Sanierung) erhöhen das Eigenkapital, nicht die Rate.</div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head" onclick="toggleAcc(this)"><span>Nebenkosten / Jahr</span><span class="acc-arrow"></span></div>
+    <div class="acc-body">
+      <div style="font-size:11px;font-weight:bold;color:var(--green);font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Umlagefähig §2 BetrKV — Mieter zahlen<button type="button" class="info" data-tip="Diese Kosten zahlt der Mieter über die Nebenkostenabrechnung. Nur bei Leerstand zahlst du sie selbst." aria-label="Erklärung">i</button></div>
+      <div class="sl-row"><div class="sl-head"><label>Heizung &amp; Warmwasser</label><span class="sl-val" id="v-heizung">800 €</span></div><input type="range" id="heizung" min="0" max="5000" step="1" value="1200"></div>
+      <div class="sl-row"><div class="sl-head"><label>Wasser &amp; Abwasser</label><span class="sl-val" id="v-wasser">300 €</span></div><input type="range" id="wasser" min="0" max="2000" step="1" value="350"></div>
+      <div class="sl-row"><div class="sl-head"><label>Müllabfuhr</label><span class="sl-val" id="v-muell">150 €</span></div><input type="range" id="muell" min="0" max="1000" step="1" value="200"></div>
+      <div class="sl-row"><div class="sl-head"><label>Gebäudeversicherung (anteilig)</label><span class="sl-val" id="v-versich_uml">200 €</span></div><input type="range" id="versich_uml" min="0" max="1500" step="1" value="200"></div>
+      <div class="sl-row"><div class="sl-head"><label>Hausmeister / Reinigung</label><span class="sl-val" id="v-hausmeister">250 €</span></div><input type="range" id="hausmeister" min="0" max="2000" step="1" value="300"></div>
+      <div class="sl-row"><div class="sl-head"><label>Sonstige umlagefähig</label><span class="sl-val" id="v-nk_sonst_uml">100 €</span></div><input type="range" id="nk_sonst_uml" min="0" max="2000" step="1" value="400"></div>
+      <div class="sum-box green"><span class="label">Umlagefähig gesamt</span><span class="val" id="sum-uml">—</span></div>
+      <hr class="light">
+      <div style="font-size:11px;font-weight:bold;color:var(--red);font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Nicht-umlagefähig — du zahlst<button type="button" class="info" data-tip="Diese Kosten darfst du nicht auf den Mieter umlegen. Sie mindern deinen Überschuss." aria-label="Erklärung">i</button></div>
+      <div class="sl-row"><div class="sl-head"><label>Verwaltungskosten</label><span class="sl-val" id="v-verwaltung">600 €</span></div><input type="range" id="verwaltung" min="0" max="3000" step="1" value="400"></div>
+      <div class="sl-row"><div class="sl-head"><label>Instandhaltungsrücklage<button type="button" class="info" data-tip="Zahlung in die Rücklage der Eigentümergemeinschaft. Kostet dich jeden Monat Geld, ist steuerlich aber erst absetzbar, wenn die Rücklage ausgegeben wird." aria-label="Erklärung">i</button></label><span class="sl-val" id="v-instand">600 €</span></div><input type="range" id="instand" min="0" max="5000" step="1" value="900"></div>
+      <div class="sl-row"><div class="sl-head"><label>Nicht umlagefähige Versicherung</label><span class="sl-val" id="v-versich_nu">150 €</span></div><input type="range" id="versich_nu" min="0" max="1000" step="1" value="150"></div>
+      <div class="sl-row"><div class="sl-head"><label>Sonstige nicht-umlagefähig</label><span class="sl-val" id="v-nk_sonst_nu">0 €</span></div><input type="range" id="nk_sonst_nu" min="0" max="2000" step="1" value="200"></div>
+      <div class="sum-box red"><span class="label">Nicht-umlagefähig gesamt</span><span class="val" id="sum-nu">—</span></div>
+      <div class="sum-box" style="margin-top:6px"><span class="label">Bewirtschaftung gesamt</span><span class="val" id="sum-nk-total">—</span></div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head open" onclick="toggleAcc(this)"><span>Immobilienwert</span><span class="acc-arrow"></span></div>
+    <div class="acc-body open">
+      <div class="mode-grp two">
+        <div class="mode-btn active" id="wert-mb-rate" onclick="setWertMode('rate')">Basis Kaufpreis<br><span style="font-size:9px;opacity:.7">Startwert = Kaufpreis</span></div>
+        <div class="mode-btn" id="wert-mb-qm" onclick="setWertMode('qm')">Basis Marktpreis / m²<br><span style="font-size:9px;opacity:.7">Startwert manuell</span></div>
+      </div>
+      <div>
+        <div class="sl-row">
+          <div class="sl-head"><label>Wertzuwachs p.a. (%)</label><span class="sl-val" id="v-wertzuwachs">2,00 %</span></div>
+          <input type="range" id="wertzuwachs" min="0" max="8" step="0.1" value="2">
+        </div>
+      </div>
+      <div id="wert-panel-qm" style="display:none">
+        <div class="field"><label>Marktpreis / m² (€)</label><input type="number" id="marktpreis_qm" value="4000" min="100" max="20000" step="50"></div>
+        <div class="chip">Tipp: Angebotspreise vergleichbarer Wohnungen in der Lage, abzüglich 5–15 % Verhandlungsabschlag.</div>
+      </div>
+      <div class="sum-box blue"><span class="label">Wert in Jahr 10</span><span class="val" id="sum-wert10">—</span></div>
+    </div>
+  </div>
+
+  <div class="acc">
+    <div class="acc-head open" onclick="toggleAcc(this)"><span>Steuer</span><span class="acc-arrow"></span></div>
+    <div class="acc-body open">
+      <div class="field"><label>Persönlicher Steuersatz (%)<button type="button" class="info" data-tip="Dein Grenzsteuersatz: der Satz, mit dem der letzte verdiente Euro besteuert wird, ggf. inkl. Soli und Kirchensteuer." aria-label="Erklärung">i</button></label><input type="number" id="steuersatz" value="42" min="14" max="45" step="0.1"></div>
+      <div class="chip">Zinsen + AfA + nicht-umlagefähige NK mindern Mieteinnahmen steuerlich (§21 EStG). Tilgung ist kein steuerlicher Aufwand, die Instandhaltungsrücklage erst bei tatsächlicher Verwendung. AfA-Basis = Gebäudeanteil inkl. anteiliger Kaufnebenkosten. Der Steuersatz gilt für alle Jahre gleich; bei hohen Verlusten wirkt die Progression in Wirklichkeit schwächer.</div>
+    </div>
+  </div>
+
+  <button type="button" class="btn-reset" onclick="zuruecksetzen()">Auf Standardwerte zurücksetzen</button>
+  <div class="save-note">Deine Eingaben werden auf diesem Gerät gespeichert.</div>
+
+</aside>
+
+<main class="main">
+
+  <section class="hilfe" id="hilfe" hidden>
+    <div class="hilfe-kopf">
+      <h2>So funktioniert der Rechner</h2>
+      <button type="button" class="hilfe-zu" onclick="toggleHilfe(false)" aria-label="Anleitung schließen">×</button>
+    </div>
+    <p class="hilfe-intro">Der Rechner spielt durch, was der Kauf und die Vermietung der Wohnung über die nächsten 10 Jahre bedeuten: wie viel Geld jeden Monat übrig bleibt, was die Wohnung später wert ist und wie die Steuer dabei hilft. Du brauchst dafür kein Vorwissen. Die Themen unten erklären die Begriffe, die im Rechner vorkommen.</p>
+
+    <details open>
+      <summary>Bedienung in 30 Sekunden</summary>
+      <ul>
+        <li><b>Eingaben</b> stehen links, auf dem Handy oben, in aufklappbaren Bereichen wie „Objekt“ oder „Finanzierung“. Jede Änderung wird sofort neu gerechnet.</li>
+        <li><b>Die grüne Karte oben</b> beantwortet die wichtigste Frage: Was bleibt im Schnitt pro Monat übrig, nachdem Rate, Kosten und Steuer verrechnet sind? Grün heißt, die Wohnung trägt sich. Rot heißt, du legst drauf.</li>
+        <li><b>Kleine Zahlen neben dem Ergebnis</b> wie „+12 €“ zeigen, wie sehr deine Änderungen das Ergebnis gegenüber den Standardwerten verschieben.</li>
+        <li><b>Das kleine ⓘ</b> erklärt einen Begriff direkt an Ort und Stelle. Antippen öffnet, Tippen daneben schließt.</li>
+        <li><b>Die Reiter</b> unter den Kennzahlen zeigen Details: Jahr für Jahr, die ersten 36 Monate, Steuer, Sanierung und Wertentwicklung.</li>
+        <li><b>„Szenarien“</b> oben rechts speichert den aktuellen Stand unter einem Namen, zum Beispiel „Wertzuwachs 1 %“. Gespeichert wird nur in diesem Browser. Mit „Als Datei speichern“ nimmst du ein Szenario auf ein anderes Gerät mit oder sicherst es.</li>
+        <li><b>„Vergleich A/B“</b> stellt den aktuellen Stand und gespeicherte Szenarien mit den wichtigsten Kennzahlen nebeneinander.</li>
+        <li><b>Deine Eingaben bleiben auf diesem Gerät gespeichert.</b> Ganz unten bei den Eingaben setzt „Auf Standardwerte zurücksetzen“ alles zurück.</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>Geld rein, Geld raus: der monatliche Überschuss</summary>
+      <p><b>Rein</b> kommt die Kaltmiete. <b>Raus</b> gehen die Rate an die Bank, die Kosten, die du nicht auf den Mieter umlegen darfst (Verwaltung, Rücklage), und solange niemand eingezogen ist auch die Nebenkosten. Was übrig bleibt, ist der <b>Überschuss</b>. Dazu kommt die <b>Steuerwirkung</b>: Ein steuerlicher Verlust aus der Vermietung senkt die Steuer auf dein übriges Einkommen. Das ist bares Geld, das zurückkommt.</p>
+      <p><b>Wichtig:</b> In der Rate steckt auch die Tilgung. Sie fühlt sich wie eine Ausgabe an, ist aber eigentlich Sparen, denn mit jeder Tilgung gehört dir ein größerer Teil der Wohnung. Ein Überschuss von null kann deshalb trotzdem bedeuten, dass dein Vermögen jeden Monat wächst.</p>
+    </details>
+
+    <details>
+      <summary>Finanzierung: Zins, Tilgung, Eigenkapital</summary>
+      <p>Der <b>Zins</b> ist der Preis, den die Bank für das geliehene Geld verlangt. Er ist ein echter Kostenpunkt. Die <b>Tilgung</b> ist der Teil der Rate, mit dem du den Kredit abbezahlst. Weil die Restschuld jeden Monat sinkt, wird der Zinsanteil kleiner und der Tilgungsanteil größer, obwohl die Rate gleich bleibt.</p>
+      <p><b>Eigenkapital</b> ist alles, was du selbst bezahlst: Kaufpreis, Kaufnebenkosten und Sanierung, abzüglich des Darlehens. Der Darlehensbetrag ist im Vertrag festgelegt. Wird die Sanierung teurer, steigt deshalb nicht die Rate, sondern das Eigenkapital, das du aufbringen musst.</p>
+    </details>
+
+    <details>
+      <summary>Nebenkosten: wer zahlt was?</summary>
+      <p><b>Umlagefähige</b> Kosten wie Heizung, Wasser oder Müll zahlt der Mieter über die jährliche Nebenkostenabrechnung. Für dich gleichen sie sich also aus, außer die Wohnung steht leer. <b>Nicht umlagefähige</b> Kosten trägst du selbst, vor allem die Verwaltung und die <b>Instandhaltungsrücklage</b>. Das ist eine Art gemeinsames Sparkonto der Eigentümer für künftige Reparaturen am Haus. Du zahlst sie jeden Monat, steuerlich absetzen kannst du sie aber erst, wenn das Geld für eine Reparatur ausgegeben wird.</p>
+    </details>
+
+    <details>
+      <summary>Steuer: warum Vermieten Steuern sparen kann</summary>
+      <p>Vermietung ist eine eigene Einkunftsart. Gerechnet wird so: <b>Mieteinnahmen minus Werbungskosten</b>. Werbungskosten sind alles, was mit der Vermietung zu tun hat: Zinsen, Verwaltung, Reparaturen und die Abschreibung. Ist das Ergebnis negativ, mindert dieser Verlust dein übriges zu versteuerndes Einkommen, und du zahlst weniger Steuer auf dein Gehalt. Die Tilgung zählt nicht dazu, denn sie ist Vermögensaufbau und kein Aufwand.</p>
+      <p>Der <b>persönliche Steuersatz</b> im Rechner ist dein Grenzsteuersatz: der Satz, mit dem der letzte verdiente Euro besteuert wird. Bei einem Verlust von 1.000 € und 44 % sparst du also etwa 440 €. Bei sehr hohen Verlusten in einem einzigen Jahr sinkt dieser Satz in Wirklichkeit, weil die Steuer progressiv ist. Der Rechner rechnet vereinfacht mit einem festen Satz.</p>
+    </details>
+
+    <details>
+      <summary>Abschreibung (AfA): die Wohnung nutzt sich ab</summary>
+      <p>Den Kaufpreis kannst du nicht auf einmal absetzen. Stattdessen geht das Finanzamt davon aus, dass sich das Gebäude über viele Jahre abnutzt. Jedes Jahr darfst du deshalb einen festen Prozentsatz als Werbungskosten abziehen, zum Beispiel 2 %, 3 % oder mit Gutachten 4 %. Das nennt man <b>AfA</b>, Absetzung für Abnutzung. Abgeschrieben wird nur der <b>Gebäudeanteil</b> inklusive der anteiligen Kaufnebenkosten. Grund und Boden nutzt sich nicht ab und zählt nicht mit.</p>
+      <p>Die AfA kostet dich kein Geld, senkt aber jedes Jahr die Steuer. Deshalb ist sie einer der größten Hebel im Rechner.</p>
+    </details>
+
+    <details>
+      <summary>Sanierung: sofort absetzen oder über Jahre verteilen?</summary>
+      <p>Für jede Maßnahme entscheidet das Steuerrecht, ob die Kosten <b>sofort</b> im Jahr der Zahlung abziehbar sind oder ob sie wie der Kaufpreis über viele Jahre <b>abgeschrieben</b> werden. Sofort abziehbar ist meist der <b>Erhaltungsaufwand</b>: Vorhandenes wird repariert oder erneuert, etwa Streichen, neue Böden oder ein neues Bad anstelle des alten.</p>
+      <p>Die <b>15-%-Regel</b>: Was in den ersten 3 Jahren nach dem Übergang an Erhaltungsaufwand anfällt, darf ohne Mehrwertsteuer höchstens 15 % der Gebäudekosten ausmachen. Wird die Grenze überschritten, gilt alles in diesem Zeitraum als Teil des Kaufs und wird nur noch abgeschrieben. Die Ampel in der Sanierung zeigt, wie viel Luft noch bleibt. Arbeiten <b>vor</b> dem Übergang zählen nicht mit, deshalb ist für jede Maßnahme das Ausführungsdatum wichtig.</p>
+      <p>Weitere Einordnungen: <b>Anschaffungskosten</b>, wenn die Wohnung beim Kauf technisch gar nicht nutzbar war. <b>Herstellungskosten</b>, wenn deutlich mehr als vorher entsteht, etwa ein klar höherer Standard. Ein <b>eigenes Wirtschaftsgut</b> wie die Einbauküche wird separat über 10 Jahre abgeschrieben. Große Reparaturkosten darfst du außerdem auf 2 bis 5 Jahre verteilen (§ 82b). Das kann sich lohnen, wenn ein einzelnes Jahr sonst einen riesigen Verlust hätte.</p>
+    </details>
+
+    <details>
+      <summary>Kennzahlen: was sagt welche Zahl?</summary>
+      <ul>
+        <li><b>Gesamtrendite (IRR):</b> der Zinssatz, mit dem sich dein Eigenkapital über alle Jahre verzinst, einschließlich des Wohnungswerts am Ende. Gut vergleichbar mit einem Sparzins oder einer Aktienrendite.</li>
+        <li><b>Dein Anteil nach 10 Jahren:</b> Wohnungswert minus Restschuld bei der Bank. So viel gehört dir dann tatsächlich.</li>
+        <li><b>Brutto-Mietrendite:</b> Jahresmiete geteilt durch Kaufpreis. Eine schnelle Faustzahl ohne Kosten.</li>
+        <li><b>Mietmultiplikator:</b> Wie viele Jahresmieten kostet die Wohnung? Je niedriger, desto günstiger gekauft.</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>Was der Rechner nicht kann</summary>
+      <p>Er rechnet mit Annahmen: Wertsteigerung, Miete und Steuersatz sind Schätzungen. Ein fester Steuersatz bildet die Wirklichkeit bei großen Verlusten nur grob ab. Mietausfall, Zinsänderungen nach der Zinsbindung und Verkaufskosten sind nicht enthalten. Und der Rechner ist <b>keine Steuerberatung</b>: Er zeigt Szenarien, damit du die richtigen Fragen stellen kannst. Die verbindliche Einordnung, vor allem bei der Sanierung, klärt die Steuerberatung.</p>
+    </details>
+  </section>
+
+  <div class="hero" id="hero"></div>
+
+  <section class="compare-inputs" id="compare-inputs">
+    <div class="compare-col-head"><span class="col-dot" style="background:var(--purple)"></span>Vergleich gespeicherter Szenarien</div>
+    <div id="vergleich-auswahl"></div>
+    <div class="tbl-wrap"><table id="vergleich-tabelle"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <div class="metrics" id="metric-grid"></div>
+  <details class="more"><summary>Weitere Kennzahlen</summary><div class="metrics" id="metric-more"></div></details>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="setView('rendite',event)">Renditekennzahlen</button>
+    <button class="tab-btn" onclick="setView('jahr',event)">Jahresübersicht</button>
+    <button class="tab-btn" onclick="setView('monat',event)">36 Monate</button>
+    <button class="tab-btn" onclick="setView('inv',event)">Abschreibung (AfA)</button>
+    <button class="tab-btn" onclick="setView('san',event)">Sanierung steuerlich</button>
+    <button class="tab-btn" onclick="setView('nk',event)">Nebenkosten</button>
+    <button class="tab-btn" onclick="setView('steuer',event)">Steuereffekt</button>
+    <button class="tab-btn" onclick="setView('wert',event)">Immobilienwert</button>
+  </div>
+
+  <div id="rendite-panel">
+    <div class="rendite-section-title blue">Renditekennzahlen</div>
+    <div class="rendite-grid" id="rendite-a"></div>
+  </div>
+
+  <div id="san-panel">
+    <div class="metrics" id="san-metrics"></div>
+    <div class="ampel" id="ampel-main"></div>
+    <div id="san-hinweise"></div>
+  </div>
+
+  <div class="tbl-wrap" id="tbl-wrap" style="display:none">
+    <table id="main-table"><thead></thead><tbody></tbody></table>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title">Cash-Flow Übersicht (10 Jahre)</div>
+    <div class="chart-wrap"><canvas id="cfChart"></canvas></div>
+    <div class="chart-legend" id="cf-legend"></div>
+  </div>
+
+  <div class="chart-card" style="margin-top:1rem">
+    <div class="chart-title">Immobilienwert &amp; Eigenkapitalentwicklung</div>
+    <div class="chart-wrap"><canvas id="wertChart"></canvas></div>
+    <div class="chart-legend" id="wert-legend"></div>
+  </div>
+
+  <footer class="fuss-hinweis"><b>Keine Steuer- oder Rechtsberatung.</b> Der Simulator ist ein vereinfachtes Modell. Alle Ergebnisse sind Schätzungen ohne Gewähr; die steuerliche Einordnung im Einzelfall klärt eine Steuerberatung.</footer>
+</main>
+</div>
+
+<script src="js/rechner.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

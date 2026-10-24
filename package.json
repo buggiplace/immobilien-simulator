@@ -1,0 +1,10 @@
+{
+  "name": "immobilien-simulator",
+  "private": true,
+  "type": "module",
+  "description": "Immobilien-Simulator: Cashflow, Rendite und vereinfachte Steuerwirkung einer vermieteten Eigentumswohnung",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test"
+  }
+}
